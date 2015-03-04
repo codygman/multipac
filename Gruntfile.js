@@ -32,6 +32,10 @@ module.exports = function(grunt) {
       {
         src: ["js/server.js"],
         dest: "dist/server.js"
+      },
+      {
+        src: ["node_modules/hammerjs"],
+        dest: "dist/node_modules/hammerjs"
       }
     ],
 

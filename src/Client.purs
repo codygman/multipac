@@ -129,6 +129,7 @@ mkCallbacks =
     { render: render ctx
     , onMessage: onMessage
     , onKeyDown: onKeyDown
+    , onSwipe: onSwipe
     , onError: onError
     , onClose: onClose
     }
@@ -175,6 +176,14 @@ onKeyDown event = do
     CWaitingForPlayers sw -> do
       when (code == keyCodeSpace) do
         sendUpdate SIToggleReadyState
+
+onSwipe :: forall e. Direction -> CM e Unit
+onSwipe dir = do
+  state <- get
+  case state of
+    CInProgress _ -> do
+      sendUpdate (SIInProgress dir)
+    _ -> return unit
 
 type CM e a = ClientM ClientState ServerIncomingMessage e a
 
@@ -273,3 +282,4 @@ hideWaitingMessageDiv = withEl hideElement "#waiting-message"
 
 showSimpleScoresDiv = withEl showElement "#scores-container"
 hideSimpleScoresDiv = withEl hideElement "#scores-container"
+

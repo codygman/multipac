@@ -1,6 +1,7 @@
 module BaseClient where
 
 import Debug.Trace (Trace(), trace)
+import Data.Function
 import Data.Maybe
 import Data.Tuple (fst, snd)
 import Data.Foldable (for_)
@@ -16,9 +17,10 @@ import qualified Control.Monad.Reader.Class as R
 import Control.Monad.Eff (Eff())
 import Control.Monad.Eff.Ref (newRef, readRef, writeRef, modifyRef, Ref(),
                               RefVal())
-import Data.DOM.Simple.Types (DOM(), DOMEvent())
+import Data.DOM.Simple.Types (DOM(), DOMEvent(), HTMLElement(), HTMLWindow())
 import Data.DOM.Simple.Events (addKeyboardEventListener, KeyboardEventType(..))
-import Data.DOM.Simple.Window (globalWindow)
+import Data.DOM.Simple.Window (globalWindow, document)
+import Data.DOM.Simple.Document (body)
 import Graphics.Canvas (Canvas())
 
 import Types
@@ -45,6 +47,7 @@ getReader c = ClientMReader { playerId: c.playerId, players: c.players }
 type ClientCallbacks st inc outg e =
   { onMessage     :: inc -> ClientM st outg e Unit
   , onKeyDown     :: DOMEvent -> ClientM st outg e Unit
+  , onSwipe       :: Direction -> ClientM st outg e Unit
   , render        :: ClientM st outg e Unit
   , onError       :: ClientM st outg e Unit
   , onClose       :: ClientM st outg e Unit
@@ -146,6 +149,14 @@ startClient initialState cs socketUrl playerName =
       (\event -> runCallback refCln (cs.onKeyDown event))
       globalWindow
 
+    bod <- document globalWindow >>= body
+    let swipe = cs.onSwipe >>> runCallback refCln
+    hammer bod
+      (swipe Left)
+      (swipe Right)
+      (swipe Up)
+      (swipe Down)
+
     void $ startAnimationLoop $ do
       c <- readRef refCln
       runCallback refCln cs.render
@@ -225,3 +236,28 @@ foreign import stopAnimationLoop
     loop.stop()
   }
   """ :: forall e. AnimationLoop -> Eff e Unit
+
+foreign import data HammerJS :: *
+
+foreign import hammerJS
+  "var hammerJS = require('hammerjs')" :: HammerJS
+
+data SwipeDirection = SwipeRight | SwipeLeft | SwipeUp | SwipeDown
+
+foreign import hammerImpl
+  """
+  function hammerImpl(el, onleft, onright, onup, ondown) {
+    return function() {
+      var mc = new hammerJS(el)
+      mc.get('swipe').set({ directiion: hammerJS.DIRECTION_ALL })
+      mc.on('swipeleft', onleft)
+      mc.on('swiperight', onright)
+      mc.on('swipeup', onup)
+      mc.on('swipedown', ondown)
+    }
+  }
+  """ :: forall e.
+  Fn5 HTMLElement (Eff e Unit) (Eff e Unit) (Eff e Unit) (Eff e Unit) (Eff e Unit)
+
+hammer el onleft onright onup ondown =
+  runFn5 hammerImpl el onleft onright onup ondown 
